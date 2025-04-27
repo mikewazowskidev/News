@@ -30,8 +30,9 @@ jobs:
           cat > parse_rss.py << 'EOF'
           import feedparser
           import datetime
-          from dateutil import parser
+          from dateutil import parser as date_parser
           import time
+          import re
           
           # Topics and their RSS URLs
           topics = {
@@ -54,9 +55,30 @@ jobs:
           
           """
           
-          # Get current time and 24 hours ago
-          now = datetime.datetime.now()
-          day_ago = now - datetime.timedelta(days=1)
+          # Get current time and 48 hours ago (to be safe with date parsing)
+          now = datetime.datetime.now(datetime.timezone.utc)
+          two_days_ago = now - datetime.timedelta(days=2)
+          
+          # Function to clean HTML from text
+          def clean_html(html_text):
+              # Remove HTML tags
+              clean_text = re.sub(r'<[^>]+>', '', html_text)
+              
+              # Replace HTML entities
+              entities = {
+                  '&nbsp;': ' ',
+                  '&quot;': '"',
+                  '&amp;': '&',
+                  '&lt;': '<',
+                  '&gt;': '>',
+                  '&apos;': "'",
+                  '&#39;': "'"
+              }
+              
+              for entity, replacement in entities.items():
+                  clean_text = clean_text.replace(entity, replacement)
+              
+              return clean_text
           
           # Process each topic
           for topic, url in topics.items():
@@ -69,50 +91,85 @@ jobs:
                   # Parse the feed
                   feed = feedparser.parse(url)
                   
-                  # Filter for entries in the last 24 hours
+                  # Store recent entries
                   recent_entries = []
+                  
                   for entry in feed.entries:
-                      try:
-                          # Parse the publication date
-                          pub_date = parser.parse(entry.published)
-                          
-                          # Check if it's within the last 24 hours
-                          if pub_date > day_ago:
-                              recent_entries.append(entry)
-                      except:
-                          # Skip entries with unparseable dates
-                          continue
+                      # Try multiple approaches to get the publication date
+                      pub_date = None
+                      date_string = None
+                      
+                      # Method 1: Use published field
+                      if hasattr(entry, 'published'):
+                          date_string = entry.published
+                      # Method 2: Use updated field
+                      elif hasattr(entry, 'updated'):
+                          date_string = entry.updated
+                      # Method 3: Use pubDate field
+                      elif hasattr(entry, 'pubDate'):
+                          date_string = entry.pubDate
+                      
+                      # Parse the date if we found a date string
+                      if date_string:
+                          try:
+                              # Remove timezone name if present (like GMT, UTC, etc.)
+                              date_string = re.sub(r' [A-Z]{3}$', '', date_string)
+                              pub_date = date_parser.parse(date_string)
+                              
+                              # Add UTC timezone if naive datetime
+                              if pub_date.tzinfo is None:
+                                  pub_date = pub_date.replace(tzinfo=datetime.timezone.utc)
+                          except:
+                              pass
+                      
+                      # If we couldn't parse the date, use current time but mark it
+                      if pub_date is None:
+                          pub_date = now
+                          entry.date_parsed = False
+                      else:
+                          entry.date_parsed = True
+                      
+                      # Store the parsed date
+                      entry.parsed_date = pub_date
+                      
+                      # Always include entries from the feed (we'll show all of them)
+                      recent_entries.append(entry)
+                  
+                  # Sort entries by date, newest first
+                  recent_entries.sort(key=lambda x: x.parsed_date, reverse=True)
+                  
+                  # Limit to 10 entries maximum
+                  recent_entries = recent_entries[:10]
                   
                   # Add entries to README
                   if recent_entries:
                       for entry in recent_entries:
+                          # Get title and link
+                          title = entry.title
+                          link = entry.link
+                          
+                          # Get description
+                          description = ""
+                          if hasattr(entry, 'description'):
+                              description = entry.description
+                          elif hasattr(entry, 'summary'):
+                              description = entry.summary
+                          
                           # Clean up description
-                          description = entry.description
-                          
-                          # Remove HTML tags (simple approach)
-                          while '<' in description and '>' in description:
-                              start = description.find('<')
-                              end = description.find('>', start)
-                              if start != -1 and end != -1:
-                                  description = description[:start] + description[end+1:]
-                              else:
-                                  break
-                          
-                          # Replace HTML entities
-                          description = description.replace('&nbsp;', ' ')
-                          description = description.replace('&quot;', '"')
-                          description = description.replace('&amp;', '&')
-                          description = description.replace('&lt;', '<')
-                          description = description.replace('&gt;', '>')
+                          description = clean_html(description)
                           
                           # Limit description length
                           if len(description) > 250:
                               description = description[:247] + "..."
                           
+                          # Format date
+                          date_str = entry.parsed_date.strftime('%Y-%m-%d %H:%M:%S')
+                          date_display = f"({date_str})"
+                          
                           # Add entry to README
-                          readme_content += f"- **[{entry.title}]({entry.link})** - {description}\n\n"
+                          readme_content += f"- **[{title}]({link})** - {description}\n\n"
                   else:
-                      readme_content += "*No articles published in the last 24 hours*\n\n"
+                      readme_content += "*No articles found*\n\n"
               
               except Exception as e:
                   readme_content += f"*Error processing feed: {str(e)}*\n\n"
@@ -132,10 +189,10 @@ jobs:
       - name: Run Python script
         run: python parse_rss.py
 
-      - name: Commit and push changes
+      - name: Commit and push changes with force
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add README.md
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
-          git push
+          git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
+          git push --force origin main
