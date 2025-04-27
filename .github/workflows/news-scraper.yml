@@ -1,4 +1,4 @@
-name: Google News Scraper
+name: Google News RSS Feed
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  scrape-news:
+  update-readme:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,132 +15,55 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'  # Using Node.js 18 to avoid compatibility issues
-
-      - name: Create news scraper
+      - name: Create simple README with news links
         run: |
-          # Create a simple scraper that doesn't rely on complex dependencies
-          cat > scraper.js << 'EOF'
-          const https = require('https');
-          const fs = require('fs');
+          # Create a simple README with direct links
+          cat > README.md << EOF
+          # News Tracker
 
-          // Function to fetch data from URL
-          function fetchURL(url) {
-            return new Promise((resolve, reject) => {
-              https.get(url, (res) => {
-                let data = '';
-                res.on('data', (chunk) => {
-                  data += chunk;
-                });
-                res.on('end', () => {
-                  resolve(data);
-                });
-              }).on('error', (err) => {
-                reject(err);
-              });
-            });
-          }
-
-          // Extract article data from Google News RSS XML
-          function extractArticles(xml, keyword, limit = 5) {
-            const articles = [];
-            const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-            const titleRegex = /<title>(.*?)<\/title>/;
-            const linkRegex = /<link>(.*?)<\/link>/;
-            const sourceRegex = /<source.*?>(.*?)<\/source>/;
-            
-            let match;
-            while ((match = itemRegex.exec(xml)) !== null && articles.length < limit) {
-              const item = match[1];
-              
-              const titleMatch = titleRegex.exec(item);
-              const linkMatch = linkRegex.exec(item);
-              const sourceMatch = sourceRegex.exec(item);
-              
-              if (titleMatch && linkMatch) {
-                articles.push({
-                  title: titleMatch[1],
-                  link: linkMatch[1],
-                  source: sourceMatch ? sourceMatch[1] : 'Unknown',
-                  keyword: keyword
-                });
-              }
-            }
-            
-            return articles;
-          }
-
-          // Main function
-          async function main() {
-            const keywords = ['AI', 'Machine Learning', 'Data Science'];
-            let allArticles = [];
-            
-            try {
-              // Fetch articles for each keyword
-              for (const keyword of keywords) {
-                const encodedKeyword = encodeURIComponent(keyword);
-                const url = `https://news.google.com/rss/search?q=${encodedKeyword}&hl=en-US&gl=US&ceid=US:en`;
-                
-                console.log(`Fetching news for ${keyword}...`);
-                const xml = await fetchURL(url);
-                const articles = extractArticles(xml, keyword);
-                allArticles = allArticles.concat(articles);
-                
-                console.log(`Found ${articles.length} articles for ${keyword}`);
-              }
-              
-              // Create README content
-              let readmeContent = `# News Tracker\n\n`;
-              readmeContent += `This repository automatically tracks news articles from Google News.\n\n`;
-              readmeContent += `## Latest News\n\n`;
-              readmeContent += `_Last updated: ${new Date().toUTCString()}_\n\n`;
-              
-              // Group articles by keyword
-              const groupedArticles = {};
-              for (const article of allArticles) {
-                if (!groupedArticles[article.keyword]) {
-                  groupedArticles[article.keyword] = [];
-                }
-                groupedArticles[article.keyword].push(article);
-              }
-              
-              // Add articles to README
-              for (const keyword in groupedArticles) {
-                readmeContent += `### ${keyword}\n\n`;
-                
-                for (const article of groupedArticles[keyword]) {
-                  readmeContent += `- [${article.title}](${article.link})`;
-                  if (article.source && article.source !== 'Unknown') {
-                    readmeContent += ` - ${article.source}`;
-                  }
-                  readmeContent += '\n';
-                }
-                
-                readmeContent += '\n';
-              }
-              
-              // Write README
-              fs.writeFileSync('README.md', readmeContent);
-              console.log('README updated successfully!');
-              
-            } catch (error) {
-              console.error('Error:', error.message);
-              process.exit(1);
-            }
-          }
-
-          main();
-          EOF
+          This repository provides direct links to Google News RSS feeds for various topics.
           
-          node scraper.js
+          Last updated: $(date -u)
+          
+          ## Direct RSS Feeds
+          
+          ### General News
+          - [Top Headlines RSS Feed](https://news.google.com/rss)
+          
+          ### Technology
+          - [Technology News RSS Feed](https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en)
+          
+          ### Business
+          - [Business News RSS Feed](https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en)
+          
+          ### Science
+          - [Science News RSS Feed](https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp0Y1RjU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en)
+          
+          ### Health
+          - [Health News RSS Feed](https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR3QwTlRFU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US:en)
+          
+          ### Entertainment
+          - [Entertainment News RSS Feed](https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNREpxYW5RU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en)
+          
+          ### Sports
+          - [Sports News RSS Feed](https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZGpBU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en)
+          
+          ## How to Use
+          
+          These links can be added to any RSS reader to stay updated with the latest news. Some popular RSS readers include:
+          
+          - Feedly
+          - Inoreader
+          - NewsBlur
+          - Feedbin
+          
+          You can also use browser extensions or desktop applications that support RSS.
+          EOF
 
-      - name: Commit changes
+      - name: Commit and push changes
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add README.md
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update news links: $(date +'%Y-%m-%d %H:%M:%S')"
           git push
