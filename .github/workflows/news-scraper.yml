@@ -30,34 +30,23 @@ jobs:
           cat > parse_rss.py << 'EOF'
           import feedparser
           import datetime
-          from dateutil import parser as date_parser
-          import time
           import re
+          from dateutil import parser as date_parser
           
-          # Topics and their RSS URLs
+          # Custom topics focused on cybersecurity and related fields
           topics = {
-              "Artificial Intelligence": "https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en",
-              "Machine Learning": "https://news.google.com/rss/search?q=machine+learning&hl=en-US&gl=US&ceid=US:en",
-              "Data Science": "https://news.google.com/rss/search?q=data+science&hl=en-US&gl=US&ceid=US:en",
-              "Cloud Computing": "https://news.google.com/rss/search?q=cloud+computing&hl=en-US&gl=US&ceid=US:en",
-              "Blockchain": "https://news.google.com/rss/search?q=blockchain&hl=en-US&gl=US&ceid=US:en",
-              "Cybersecurity": "https://news.google.com/rss/search?q=cybersecurity&hl=en-US&gl=US&ceid=US:en",
-              "Quantum Computing": "https://news.google.com/rss/search?q=quantum+computing&hl=en-US&gl=US&ceid=US:en",
-              "Virtual Reality": "https://news.google.com/rss/search?q=virtual+reality&hl=en-US&gl=US&ceid=US:en"
+              "China Cyber": "https://news.google.com/rss/search?q=china+cyber+attack&hl=en-US&gl=US&ceid=US:en",
+              "Russian Cyber": "https://news.google.com/rss/search?q=russia+cyber+attack&hl=en-US&gl=US&ceid=US:en",
+              "Iranian Cyber": "https://news.google.com/rss/search?q=iran+cyber+attack&hl=en-US&gl=US&ceid=US:en",
+              "CVEs": "https://news.google.com/rss/search?q=cve+vulnerability&hl=en-US&gl=US&ceid=US:en",
+              "POC Exploits": "https://news.google.com/rss/search?q=proof+of+concept+exploit&hl=en-US&gl=US&ceid=US:en",
+              "Exploited Vulnerabilities": "https://news.google.com/rss/search?q=exploited+vulnerability&hl=en-US&gl=US&ceid=US:en",
+              "Satellites": "https://news.google.com/rss/search?q=satellite+cybersecurity&hl=en-US&gl=US&ceid=US:en",
+              "Cyber Attacks": "https://news.google.com/rss/search?q=major+cyber+attack&hl=en-US&gl=US&ceid=US:en",
+              "Crypto Security": "https://news.google.com/rss/search?q=cryptocurrency+security&hl=en-US&gl=US&ceid=US:en",
+              "Quantum Computing": "https://news.google.com/rss/search?q=quantum+computing+security&hl=en-US&gl=US&ceid=US:en",
+              "Espionage": "https://news.google.com/rss/search?q=cyber+espionage&hl=en-US&gl=US&ceid=US:en"
           }
-          
-          # Create README content
-          readme_content = f"""# News Tracker
-          
-          Automatically fetched Google News RSS feeds, showing articles from the last 24 hours.
-          
-          Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
-          
-          """
-          
-          # Get current time and 48 hours ago (to be safe with date parsing)
-          now = datetime.datetime.now(datetime.timezone.utc)
-          two_days_ago = now - datetime.timedelta(days=2)
           
           # Function to clean HTML from text
           def clean_html(html_text):
@@ -72,81 +61,48 @@ jobs:
                   '&lt;': '<',
                   '&gt;': '>',
                   '&apos;': "'",
-                  '&#39;': "'"
+                  '&#39;': "'",
+                  '&mdash;': "—"
               }
               
               for entity, replacement in entities.items():
                   clean_text = clean_text.replace(entity, replacement)
               
-              return clean_text
+              return clean_text.strip()
+          
+          # Create README content
+          readme_content = f"""# Cybersecurity News Tracker
+
+Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+"""
           
           # Process each topic
           for topic, url in topics.items():
               print(f"Processing {topic}")
               
               # Add topic header
-              readme_content += f"\n## {topic}\n\n"
+              readme_content += f"## {topic}\n\n"
               
               try:
                   # Parse the feed
                   feed = feedparser.parse(url)
                   
-                  # Store recent entries
-                  recent_entries = []
-                  
-                  for entry in feed.entries:
-                      # Try multiple approaches to get the publication date
-                      pub_date = None
-                      date_string = None
-                      
-                      # Method 1: Use published field
-                      if hasattr(entry, 'published'):
-                          date_string = entry.published
-                      # Method 2: Use updated field
-                      elif hasattr(entry, 'updated'):
-                          date_string = entry.updated
-                      # Method 3: Use pubDate field
-                      elif hasattr(entry, 'pubDate'):
-                          date_string = entry.pubDate
-                      
-                      # Parse the date if we found a date string
-                      if date_string:
-                          try:
-                              # Remove timezone name if present (like GMT, UTC, etc.)
-                              date_string = re.sub(r' [A-Z]{3}$', '', date_string)
-                              pub_date = date_parser.parse(date_string)
-                              
-                              # Add UTC timezone if naive datetime
-                              if pub_date.tzinfo is None:
-                                  pub_date = pub_date.replace(tzinfo=datetime.timezone.utc)
-                          except:
-                              pass
-                      
-                      # If we couldn't parse the date, use current time but mark it
-                      if pub_date is None:
-                          pub_date = now
-                          entry.date_parsed = False
-                      else:
-                          entry.date_parsed = True
-                      
-                      # Store the parsed date
-                      entry.parsed_date = pub_date
-                      
-                      # Always include entries from the feed (we'll show all of them)
-                      recent_entries.append(entry)
-                  
-                  # Sort entries by date, newest first
-                  recent_entries.sort(key=lambda x: x.parsed_date, reverse=True)
-                  
-                  # Limit to 10 entries maximum
-                  recent_entries = recent_entries[:10]
+                  # Limit to 5 entries maximum for cleaner look
+                  entries = feed.entries[:5]
                   
                   # Add entries to README
-                  if recent_entries:
-                      for entry in recent_entries:
+                  if entries:
+                      for entry in entries:
                           # Get title and link
-                          title = entry.title
+                          title = entry.title.replace(' - ', ': ').split(' | ')[0].strip()
                           link = entry.link
+                          
+                          # Get source if available
+                          source = ""
+                          if hasattr(entry, 'source'):
+                              if hasattr(entry.source, 'title'):
+                                  source = f" ({entry.source.title})"
                           
                           # Get description
                           description = ""
@@ -158,26 +114,32 @@ jobs:
                           # Clean up description
                           description = clean_html(description)
                           
-                          # Limit description length
-                          if len(description) > 250:
-                              description = description[:247] + "..."
+                          # Limit description length for cleaner look
+                          if len(description) > 200:
+                              # Try to end at a sentence or comma
+                              cutoff = min(200, len(description))
+                              period_pos = description.rfind('. ', 0, cutoff)
+                              comma_pos = description.rfind(', ', 0, cutoff)
+                              
+                              if period_pos > 0:
+                                  description = description[:period_pos+1]
+                              elif comma_pos > 0:
+                                  description = description[:comma_pos+1]
+                              else:
+                                  description = description[:cutoff] + "..."
                           
-                          # Format date
-                          date_str = entry.parsed_date.strftime('%Y-%m-%d %H:%M:%S')
-                          date_display = f"({date_str})"
-                          
-                          # Add entry to README
-                          readme_content += f"- **[{title}]({link})** - {description}\n\n"
+                          # Add entry to README with a cleaner format
+                          readme_content += f"* **[{title}]({link})**{source}\n  {description}\n\n"
                   else:
-                      readme_content += "*No articles found*\n\n"
+                      readme_content += "*No recent articles found*\n\n"
               
               except Exception as e:
                   readme_content += f"*Error processing feed: {str(e)}*\n\n"
           
           # Add footer
           readme_content += """---
-          
-          This README is automatically updated every 6 hours via GitHub Actions."""
+
+*Automatically updated every 6 hours via GitHub Actions*"""
           
           # Write README
           with open('README.md', 'w', encoding='utf-8') as f:
@@ -194,5 +156,5 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add README.md
-          git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
+          git commit -m "Update cybersecurity news: $(date +'%Y-%m-%d %H:%M:%S')"
           git push --force origin main
