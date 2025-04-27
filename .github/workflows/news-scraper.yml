@@ -1,0 +1,105 @@
+name: Google News Scraper
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-news:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Create news scraper
+        run: |
+          npm init -y
+          npm install axios cheerio
+          
+          cat > scraper.js << 'EOF'
+          const axios = require('axios');
+          const cheerio = require('cheerio');
+          const fs = require('fs');
+          
+          // Get news from Google News for a keyword
+          async function getNews(keyword) {
+            try {
+              const url = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=en-US&gl=US&ceid=US:en`;
+              const response = await axios.get(url);
+              const $ = cheerio.load(response.data, { xmlMode: true });
+              
+              const articles = [];
+              $('item').each((i, el) => {
+                if (i < 5) { // Get top 5 articles
+                  articles.push({
+                    title: $(el).find('title').text(),
+                    link: $(el).find('link').text(),
+                    source: $(el).find('source').text()
+                  });
+                }
+              });
+              
+              return articles;
+            } catch (error) {
+              console.error(`Error fetching news for ${keyword}:`, error.message);
+              return [];
+            }
+          }
+          
+          // Update README with news
+          async function updateReadme() {
+            // Define keywords
+            const keywords = ['AI', 'Machine Learning', 'Data Science'];
+            
+            // Start README content
+            let content = `# News Tracker\n\n`;
+            content += `This repository automatically tracks news articles from Google News.\n\n`;
+            content += `## Latest News\n\n`;
+            content += `_Last updated: ${new Date().toUTCString()}_\n\n`;
+            
+            // Get news for each keyword
+            for (const keyword of keywords) {
+              const articles = await getNews(keyword);
+              
+              if (articles.length > 0) {
+                content += `### ${keyword}\n\n`;
+                
+                for (const article of articles) {
+                  content += `- [${article.title}](${article.link})`;
+                  if (article.source) {
+                    content += ` - ${article.source}`;
+                  }
+                  content += '\n';
+                }
+                
+                content += '\n';
+              }
+            }
+            
+            // Write to README
+            fs.writeFileSync('README.md', content);
+            console.log('README updated successfully');
+          }
+          
+          // Run the update
+          updateReadme();
+          EOF
+          
+          node scraper.js
+
+      - name: Commit changes
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add README.md
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
+          git push
