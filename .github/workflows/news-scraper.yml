@@ -1,4 +1,4 @@
-name: Google News RSS Feed
+name: Google News RSS Parser
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  update-readme:
+  parse-rss:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,75 +15,109 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Create README with specialized topics
+      - name: Parse RSS feeds and create README
         run: |
-          # Create a README with focused topic links
+          # Function to fetch and parse RSS feeds
+          fetch_and_parse_rss() {
+            local topic="$1"
+            local url="$2"
+            local output_section=""
+            local current_time=$(date +%s)
+            local one_day_ago=$((current_time - 86400))
+            
+            echo "Fetching RSS feed for $topic..."
+            
+            # Fetch the RSS feed
+            local feed_content=$(curl -s "$url")
+            
+            # Create section header
+            output_section+="## $topic\n\n"
+            output_section+="*Last updated: $(date -u)*\n\n"
+            
+            # Count to track if we found any recent articles
+            local article_count=0
+            
+            # Extract items with pubDate in the last 24 hours
+            echo "$feed_content" | grep -E '<item>|<title>|<link>|<pubDate>|<description>|</item>' | while read -r line; do
+              if [[ "$line" == *"<item>"* ]]; then
+                title=""
+                link=""
+                pubDate=""
+                description=""
+                item_start=true
+              elif [[ "$line" == *"<title>"* && "$title" == "" && "$item_start" == true ]]; then
+                title=$(echo "$line" | sed -E 's/.*<title>(.*)<\/title>.*/\1/')
+              elif [[ "$line" == *"<link>"* && "$link" == "" && "$item_start" == true ]]; then
+                link=$(echo "$line" | sed -E 's/.*<link>(.*)<\/link>.*/\1/')
+              elif [[ "$line" == *"<pubDate>"* && "$pubDate" == "" && "$item_start" == true ]]; then
+                pubDate=$(echo "$line" | sed -E 's/.*<pubDate>(.*)<\/pubDate>.*/\1/')
+                # Convert pubDate to timestamp for comparison
+                pub_timestamp=$(date -d "$pubDate" +%s 2>/dev/null)
+                if [ -z "$pub_timestamp" ]; then
+                  # Try an alternative date format if the first one fails
+                  pub_timestamp=$(date -d "$(echo $pubDate | sed 's/GMT/+0000/')" +%s 2>/dev/null)
+                fi
+              elif [[ "$line" == *"<description>"* && "$description" == "" && "$item_start" == true ]]; then
+                description=$(echo "$line" | sed -E 's/.*<description>(.*)<\/description>.*/\1/')
+                # Clean up HTML from description
+                description=$(echo "$description" | sed -e 's/<[^>]*>//g' | sed -e 's/&nbsp;/ /g' | sed -e 's/&quot;/"/g' | sed -e 's/&amp;/\&/g' | sed -e 's/&lt;/</g' | sed -e 's/&gt;/>/g')
+                # Limit description length
+                if [ ${#description} -gt 250 ]; then
+                  description="${description:0:247}..."
+                fi
+              elif [[ "$line" == *"</item>"* && "$item_start" == true ]]; then
+                # Only include items from the last 24 hours
+                if [ ! -z "$pub_timestamp" ] && [ $pub_timestamp -ge $one_day_ago ]; then
+                  output_section+="- **[$title]($link)** - $description\n\n"
+                  article_count=$((article_count + 1))
+                fi
+                item_start=false
+              fi
+            done
+            
+            # If no articles found, add a message
+            if [ $article_count -eq 0 ]; then
+              output_section+="*No articles published in the last 24 hours*\n\n"
+            fi
+            
+            echo -e "$output_section"
+          }
+          
+          # Create README header
           cat > README.md << EOF
-          # Specialized News Tracker
-
-          This repository provides direct links to Google News RSS feeds for specialized topics.
+          # News Tracker
+          
+          Automatically fetched Google News RSS feeds, showing articles from the last 24 hours.
           
           Last updated: $(date -u)
           
-          ## Technology Topics
+          EOF
           
-          ### Artificial Intelligence
-          - [AI News RSS Feed](https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en)
+          # Define topics and their RSS feed URLs
+          declare -A topics=(
+            ["Artificial Intelligence"]="https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en"
+            ["Machine Learning"]="https://news.google.com/rss/search?q=machine+learning&hl=en-US&gl=US&ceid=US:en"
+            ["Data Science"]="https://news.google.com/rss/search?q=data+science&hl=en-US&gl=US&ceid=US:en"
+            ["Cloud Computing"]="https://news.google.com/rss/search?q=cloud+computing&hl=en-US&gl=US&ceid=US:en"
+            ["Blockchain"]="https://news.google.com/rss/search?q=blockchain&hl=en-US&gl=US&ceid=US:en"
+            ["Cybersecurity"]="https://news.google.com/rss/search?q=cybersecurity&hl=en-US&gl=US&ceid=US:en"
+            ["Quantum Computing"]="https://news.google.com/rss/search?q=quantum+computing&hl=en-US&gl=US&ceid=US:en"
+            ["Virtual Reality"]="https://news.google.com/rss/search?q=virtual+reality&hl=en-US&gl=US&ceid=US:en"
+          )
           
-          ### Machine Learning
-          - [Machine Learning News RSS Feed](https://news.google.com/rss/search?q=machine+learning&hl=en-US&gl=US&ceid=US:en)
+          # Fetch and parse each RSS feed
+          for topic in "${!topics[@]}"; do
+            echo "Processing $topic..."
+            section=$(fetch_and_parse_rss "$topic" "${topics[$topic]}")
+            echo -e "$section" >> README.md
+          done
           
-          ### Data Science
-          - [Data Science News RSS Feed](https://news.google.com/rss/search?q=data+science&hl=en-US&gl=US&ceid=US:en)
+          # Add footer
+          cat >> README.md << EOF
           
-          ### Cybersecurity
-          - [Cybersecurity News RSS Feed](https://news.google.com/rss/search?q=cybersecurity&hl=en-US&gl=US&ceid=US:en)
+          ---
           
-          ### Blockchain & Cryptocurrency
-          - [Blockchain News RSS Feed](https://news.google.com/rss/search?q=blockchain&hl=en-US&gl=US&ceid=US:en)
-          - [Cryptocurrency News RSS Feed](https://news.google.com/rss/search?q=cryptocurrency&hl=en-US&gl=US&ceid=US:en)
-          
-          ## Business Topics
-          
-          ### Startups
-          - [Startup News RSS Feed](https://news.google.com/rss/search?q=startups&hl=en-US&gl=US&ceid=US:en)
-          
-          ### Venture Capital
-          - [VC News RSS Feed](https://news.google.com/rss/search?q=venture+capital&hl=en-US&gl=US&ceid=US:en)
-          
-          ### Stock Market
-          - [Stock Market News RSS Feed](https://news.google.com/rss/search?q=stock+market&hl=en-US&gl=US&ceid=US:en)
-          
-          ## Science & Research
-          
-          ### Space Exploration
-          - [Space News RSS Feed](https://news.google.com/rss/search?q=space+exploration&hl=en-US&gl=US&ceid=US:en)
-          
-          ### Quantum Computing
-          - [Quantum Computing News RSS Feed](https://news.google.com/rss/search?q=quantum+computing&hl=en-US&gl=US&ceid=US:en)
-          
-          ### Renewable Energy
-          - [Renewable Energy News RSS Feed](https://news.google.com/rss/search?q=renewable+energy&hl=en-US&gl=US&ceid=US:en)
-          
-          ## How to Use
-          
-          These links can be added to any RSS reader to stay updated with the latest news on these specialized topics. Popular RSS readers include:
-          
-          - Feedly
-          - Inoreader
-          - NewsBlur
-          - Feedbin
-          
-          Simply copy the RSS feed link and add it to your preferred reader.
-          
-          ## Customizing RSS Feeds
-          
-          You can create your own customized RSS feed for any topic by using this format:
-          \`\`\`
-          https://news.google.com/rss/search?q=YOUR+SEARCH+TERM&hl=en-US&gl=US&ceid=US:en
-          \`\`\`
-          
-          Replace \`YOUR+SEARCH+TERM\` with your desired keywords, using + for spaces.
+          This README is automatically updated every 6 hours via GitHub Actions.
           EOF
 
       - name: Commit and push changes
@@ -91,5 +125,5 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add README.md
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update specialized news links: $(date +'%Y-%m-%d %H:%M:%S')"
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
           git push
