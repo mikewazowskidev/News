@@ -1,65 +1,58 @@
-# Specialized News Tracker
+# News Tracker
 
-This repository provides direct links to Google News RSS feeds for specialized topics.
+Automatically fetched Google News RSS feeds, showing articles from the last 24 hours.
 
-Last updated: Sun Apr 27 15:43:47 UTC 2025
+Last updated: Sun Apr 27 15:50:29 UTC 2025
 
-## Technology Topics
+Fetching RSS feed for Cloud Computing...
+## Cloud Computing
 
-### Artificial Intelligence
-- [AI News RSS Feed](https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:29 UTC 2025*
 
-### Machine Learning
-- [Machine Learning News RSS Feed](https://news.google.com/rss/search?q=machine+learning&hl=en-US&gl=US&ceid=US:en)
+*No articles published in the last 24 hours*
+Fetching RSS feed for Machine Learning...
+## Machine Learning
 
-### Data Science
-- [Data Science News RSS Feed](https://news.google.com/rss/search?q=data+science&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:30 UTC 2025*
 
-### Cybersecurity
-- [Cybersecurity News RSS Feed](https://news.google.com/rss/search?q=cybersecurity&hl=en-US&gl=US&ceid=US:en)
+*No articles published in the last 24 hours*
+Fetching RSS feed for Cybersecurity...
+## Cybersecurity
 
-### Blockchain & Cryptocurrency
-- [Blockchain News RSS Feed](https://news.google.com/rss/search?q=blockchain&hl=en-US&gl=US&ceid=US:en)
-- [Cryptocurrency News RSS Feed](https://news.google.com/rss/search?q=cryptocurrency&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:30 UTC 2025*
 
-## Business Topics
+*No articles published in the last 24 hours*
+Fetching RSS feed for Data Science...
+## Data Science
 
-### Startups
-- [Startup News RSS Feed](https://news.google.com/rss/search?q=startups&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:31 UTC 2025*
 
-### Venture Capital
-- [VC News RSS Feed](https://news.google.com/rss/search?q=venture+capital&hl=en-US&gl=US&ceid=US:en)
+*No articles published in the last 24 hours*
+Fetching RSS feed for Virtual Reality...
+## Virtual Reality
 
-### Stock Market
-- [Stock Market News RSS Feed](https://news.google.com/rss/search?q=stock+market&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:32 UTC 2025*
 
-## Science & Research
+*No articles published in the last 24 hours*
+Fetching RSS feed for Blockchain...
+## Blockchain
 
-### Space Exploration
-- [Space News RSS Feed](https://news.google.com/rss/search?q=space+exploration&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:32 UTC 2025*
 
-### Quantum Computing
-- [Quantum Computing News RSS Feed](https://news.google.com/rss/search?q=quantum+computing&hl=en-US&gl=US&ceid=US:en)
+*No articles published in the last 24 hours*
+Fetching RSS feed for Artificial Intelligence...
+## Artificial Intelligence
 
-### Renewable Energy
-- [Renewable Energy News RSS Feed](https://news.google.com/rss/search?q=renewable+energy&hl=en-US&gl=US&ceid=US:en)
+*Last updated: Sun Apr 27 15:50:33 UTC 2025*
 
-## How to Use
+*No articles published in the last 24 hours*
+Fetching RSS feed for Quantum Computing...
+## Quantum Computing
 
-These links can be added to any RSS reader to stay updated with the latest news on these specialized topics. Popular RSS readers include:
+*Last updated: Sun Apr 27 15:50:34 UTC 2025*
 
-- Feedly
-- Inoreader
-- NewsBlur
-- Feedbin
+*No articles published in the last 24 hours*
 
-Simply copy the RSS feed link and add it to your preferred reader.
+---
 
-## Customizing RSS Feeds
-
-You can create your own customized RSS feed for any topic by using this format:
-```
-https://news.google.com/rss/search?q=YOUR+SEARCH+TERM&hl=en-US&gl=US&ceid=US:en
-```
-
-Replace `YOUR+SEARCH+TERM` with your desired keywords, using + for spaces.
+This README is automatically updated every 6 hours via GitHub Actions.
