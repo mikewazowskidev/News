@@ -18,80 +18,121 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: '18'  # Using Node.js 18 to avoid compatibility issues
 
       - name: Create news scraper
         run: |
-          npm init -y
-          npm install axios cheerio
-          
+          # Create a simple scraper that doesn't rely on complex dependencies
           cat > scraper.js << 'EOF'
-          const axios = require('axios');
-          const cheerio = require('cheerio');
+          const https = require('https');
           const fs = require('fs');
-          
-          // Get news from Google News for a keyword
-          async function getNews(keyword) {
-            try {
-              const url = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=en-US&gl=US&ceid=US:en`;
-              const response = await axios.get(url);
-              const $ = cheerio.load(response.data, { xmlMode: true });
-              
-              const articles = [];
-              $('item').each((i, el) => {
-                if (i < 5) { // Get top 5 articles
-                  articles.push({
-                    title: $(el).find('title').text(),
-                    link: $(el).find('link').text(),
-                    source: $(el).find('source').text()
-                  });
-                }
+
+          // Function to fetch data from URL
+          function fetchURL(url) {
+            return new Promise((resolve, reject) => {
+              https.get(url, (res) => {
+                let data = '';
+                res.on('data', (chunk) => {
+                  data += chunk;
+                });
+                res.on('end', () => {
+                  resolve(data);
+                });
+              }).on('error', (err) => {
+                reject(err);
               });
-              
-              return articles;
-            } catch (error) {
-              console.error(`Error fetching news for ${keyword}:`, error.message);
-              return [];
-            }
+            });
           }
-          
-          // Update README with news
-          async function updateReadme() {
-            // Define keywords
-            const keywords = ['AI', 'Machine Learning', 'Data Science'];
+
+          // Extract article data from Google News RSS XML
+          function extractArticles(xml, keyword, limit = 5) {
+            const articles = [];
+            const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+            const titleRegex = /<title>(.*?)<\/title>/;
+            const linkRegex = /<link>(.*?)<\/link>/;
+            const sourceRegex = /<source.*?>(.*?)<\/source>/;
             
-            // Start README content
-            let content = `# News Tracker\n\n`;
-            content += `This repository automatically tracks news articles from Google News.\n\n`;
-            content += `## Latest News\n\n`;
-            content += `_Last updated: ${new Date().toUTCString()}_\n\n`;
-            
-            // Get news for each keyword
-            for (const keyword of keywords) {
-              const articles = await getNews(keyword);
+            let match;
+            while ((match = itemRegex.exec(xml)) !== null && articles.length < limit) {
+              const item = match[1];
               
-              if (articles.length > 0) {
-                content += `### ${keyword}\n\n`;
-                
-                for (const article of articles) {
-                  content += `- [${article.title}](${article.link})`;
-                  if (article.source) {
-                    content += ` - ${article.source}`;
-                  }
-                  content += '\n';
-                }
-                
-                content += '\n';
+              const titleMatch = titleRegex.exec(item);
+              const linkMatch = linkRegex.exec(item);
+              const sourceMatch = sourceRegex.exec(item);
+              
+              if (titleMatch && linkMatch) {
+                articles.push({
+                  title: titleMatch[1],
+                  link: linkMatch[1],
+                  source: sourceMatch ? sourceMatch[1] : 'Unknown',
+                  keyword: keyword
+                });
               }
             }
             
-            // Write to README
-            fs.writeFileSync('README.md', content);
-            console.log('README updated successfully');
+            return articles;
           }
-          
-          // Run the update
-          updateReadme();
+
+          // Main function
+          async function main() {
+            const keywords = ['AI', 'Machine Learning', 'Data Science'];
+            let allArticles = [];
+            
+            try {
+              // Fetch articles for each keyword
+              for (const keyword of keywords) {
+                const encodedKeyword = encodeURIComponent(keyword);
+                const url = `https://news.google.com/rss/search?q=${encodedKeyword}&hl=en-US&gl=US&ceid=US:en`;
+                
+                console.log(`Fetching news for ${keyword}...`);
+                const xml = await fetchURL(url);
+                const articles = extractArticles(xml, keyword);
+                allArticles = allArticles.concat(articles);
+                
+                console.log(`Found ${articles.length} articles for ${keyword}`);
+              }
+              
+              // Create README content
+              let readmeContent = `# News Tracker\n\n`;
+              readmeContent += `This repository automatically tracks news articles from Google News.\n\n`;
+              readmeContent += `## Latest News\n\n`;
+              readmeContent += `_Last updated: ${new Date().toUTCString()}_\n\n`;
+              
+              // Group articles by keyword
+              const groupedArticles = {};
+              for (const article of allArticles) {
+                if (!groupedArticles[article.keyword]) {
+                  groupedArticles[article.keyword] = [];
+                }
+                groupedArticles[article.keyword].push(article);
+              }
+              
+              // Add articles to README
+              for (const keyword in groupedArticles) {
+                readmeContent += `### ${keyword}\n\n`;
+                
+                for (const article of groupedArticles[keyword]) {
+                  readmeContent += `- [${article.title}](${article.link})`;
+                  if (article.source && article.source !== 'Unknown') {
+                    readmeContent += ` - ${article.source}`;
+                  }
+                  readmeContent += '\n';
+                }
+                
+                readmeContent += '\n';
+              }
+              
+              // Write README
+              fs.writeFileSync('README.md', readmeContent);
+              console.log('README updated successfully!');
+              
+            } catch (error) {
+              console.error('Error:', error.message);
+              process.exit(1);
+            }
+          }
+
+          main();
           EOF
           
           node scraper.js
