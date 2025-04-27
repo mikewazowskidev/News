@@ -15,110 +15,122 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Parse RSS feeds and create README
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
         run: |
-          # Function to fetch and parse RSS feeds
-          fetch_and_parse_rss() {
-            local topic="$1"
-            local url="$2"
-            local output_section=""
-            local current_time=$(date +%s)
-            local one_day_ago=$((current_time - 86400))
-            
-            echo "Fetching RSS feed for $topic..."
-            
-            # Fetch the RSS feed
-            local feed_content=$(curl -s "$url")
-            
-            # Create section header
-            output_section+="## $topic\n\n"
-            output_section+="*Last updated: $(date -u)*\n\n"
-            
-            # Count to track if we found any recent articles
-            local article_count=0
-            
-            # Extract items with pubDate in the last 24 hours
-            echo "$feed_content" | grep -E '<item>|<title>|<link>|<pubDate>|<description>|</item>' | while read -r line; do
-              if [[ "$line" == *"<item>"* ]]; then
-                title=""
-                link=""
-                pubDate=""
-                description=""
-                item_start=true
-              elif [[ "$line" == *"<title>"* && "$title" == "" && "$item_start" == true ]]; then
-                title=$(echo "$line" | sed -E 's/.*<title>(.*)<\/title>.*/\1/')
-              elif [[ "$line" == *"<link>"* && "$link" == "" && "$item_start" == true ]]; then
-                link=$(echo "$line" | sed -E 's/.*<link>(.*)<\/link>.*/\1/')
-              elif [[ "$line" == *"<pubDate>"* && "$pubDate" == "" && "$item_start" == true ]]; then
-                pubDate=$(echo "$line" | sed -E 's/.*<pubDate>(.*)<\/pubDate>.*/\1/')
-                # Convert pubDate to timestamp for comparison
-                pub_timestamp=$(date -d "$pubDate" +%s 2>/dev/null)
-                if [ -z "$pub_timestamp" ]; then
-                  # Try an alternative date format if the first one fails
-                  pub_timestamp=$(date -d "$(echo $pubDate | sed 's/GMT/+0000/')" +%s 2>/dev/null)
-                fi
-              elif [[ "$line" == *"<description>"* && "$description" == "" && "$item_start" == true ]]; then
-                description=$(echo "$line" | sed -E 's/.*<description>(.*)<\/description>.*/\1/')
-                # Clean up HTML from description
-                description=$(echo "$description" | sed -e 's/<[^>]*>//g' | sed -e 's/&nbsp;/ /g' | sed -e 's/&quot;/"/g' | sed -e 's/&amp;/\&/g' | sed -e 's/&lt;/</g' | sed -e 's/&gt;/>/g')
-                # Limit description length
-                if [ ${#description} -gt 250 ]; then
-                  description="${description:0:247}..."
-                fi
-              elif [[ "$line" == *"</item>"* && "$item_start" == true ]]; then
-                # Only include items from the last 24 hours
-                if [ ! -z "$pub_timestamp" ] && [ $pub_timestamp -ge $one_day_ago ]; then
-                  output_section+="- **[$title]($link)** - $description\n\n"
-                  article_count=$((article_count + 1))
-                fi
-                item_start=false
-              fi
-            done
-            
-            # If no articles found, add a message
-            if [ $article_count -eq 0 ]; then
-              output_section+="*No articles published in the last 24 hours*\n\n"
-            fi
-            
-            echo -e "$output_section"
+          python -m pip install --upgrade pip
+          pip install feedparser python-dateutil
+
+      - name: Create Python script
+        run: |
+          cat > parse_rss.py << 'EOF'
+          import feedparser
+          import datetime
+          from dateutil import parser
+          import time
+          
+          # Topics and their RSS URLs
+          topics = {
+              "Artificial Intelligence": "https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en",
+              "Machine Learning": "https://news.google.com/rss/search?q=machine+learning&hl=en-US&gl=US&ceid=US:en",
+              "Data Science": "https://news.google.com/rss/search?q=data+science&hl=en-US&gl=US&ceid=US:en",
+              "Cloud Computing": "https://news.google.com/rss/search?q=cloud+computing&hl=en-US&gl=US&ceid=US:en",
+              "Blockchain": "https://news.google.com/rss/search?q=blockchain&hl=en-US&gl=US&ceid=US:en",
+              "Cybersecurity": "https://news.google.com/rss/search?q=cybersecurity&hl=en-US&gl=US&ceid=US:en",
+              "Quantum Computing": "https://news.google.com/rss/search?q=quantum+computing&hl=en-US&gl=US&ceid=US:en",
+              "Virtual Reality": "https://news.google.com/rss/search?q=virtual+reality&hl=en-US&gl=US&ceid=US:en"
           }
           
-          # Create README header
-          cat > README.md << EOF
-          # News Tracker
+          # Create README content
+          readme_content = f"""# News Tracker
           
           Automatically fetched Google News RSS feeds, showing articles from the last 24 hours.
           
-          Last updated: $(date -u)
+          Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
           
-          EOF
+          """
           
-          # Define topics and their RSS feed URLs
-          declare -A topics=(
-            ["Artificial Intelligence"]="https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en"
-            ["Machine Learning"]="https://news.google.com/rss/search?q=machine+learning&hl=en-US&gl=US&ceid=US:en"
-            ["Data Science"]="https://news.google.com/rss/search?q=data+science&hl=en-US&gl=US&ceid=US:en"
-            ["Cloud Computing"]="https://news.google.com/rss/search?q=cloud+computing&hl=en-US&gl=US&ceid=US:en"
-            ["Blockchain"]="https://news.google.com/rss/search?q=blockchain&hl=en-US&gl=US&ceid=US:en"
-            ["Cybersecurity"]="https://news.google.com/rss/search?q=cybersecurity&hl=en-US&gl=US&ceid=US:en"
-            ["Quantum Computing"]="https://news.google.com/rss/search?q=quantum+computing&hl=en-US&gl=US&ceid=US:en"
-            ["Virtual Reality"]="https://news.google.com/rss/search?q=virtual+reality&hl=en-US&gl=US&ceid=US:en"
-          )
+          # Get current time and 24 hours ago
+          now = datetime.datetime.now()
+          day_ago = now - datetime.timedelta(days=1)
           
-          # Fetch and parse each RSS feed
-          for topic in "${!topics[@]}"; do
-            echo "Processing $topic..."
-            section=$(fetch_and_parse_rss "$topic" "${topics[$topic]}")
-            echo -e "$section" >> README.md
-          done
+          # Process each topic
+          for topic, url in topics.items():
+              print(f"Processing {topic}")
+              
+              # Add topic header
+              readme_content += f"\n## {topic}\n\n"
+              
+              try:
+                  # Parse the feed
+                  feed = feedparser.parse(url)
+                  
+                  # Filter for entries in the last 24 hours
+                  recent_entries = []
+                  for entry in feed.entries:
+                      try:
+                          # Parse the publication date
+                          pub_date = parser.parse(entry.published)
+                          
+                          # Check if it's within the last 24 hours
+                          if pub_date > day_ago:
+                              recent_entries.append(entry)
+                      except:
+                          # Skip entries with unparseable dates
+                          continue
+                  
+                  # Add entries to README
+                  if recent_entries:
+                      for entry in recent_entries:
+                          # Clean up description
+                          description = entry.description
+                          
+                          # Remove HTML tags (simple approach)
+                          while '<' in description and '>' in description:
+                              start = description.find('<')
+                              end = description.find('>', start)
+                              if start != -1 and end != -1:
+                                  description = description[:start] + description[end+1:]
+                              else:
+                                  break
+                          
+                          # Replace HTML entities
+                          description = description.replace('&nbsp;', ' ')
+                          description = description.replace('&quot;', '"')
+                          description = description.replace('&amp;', '&')
+                          description = description.replace('&lt;', '<')
+                          description = description.replace('&gt;', '>')
+                          
+                          # Limit description length
+                          if len(description) > 250:
+                              description = description[:247] + "..."
+                          
+                          # Add entry to README
+                          readme_content += f"- **[{entry.title}]({entry.link})** - {description}\n\n"
+                  else:
+                      readme_content += "*No articles published in the last 24 hours*\n\n"
+              
+              except Exception as e:
+                  readme_content += f"*Error processing feed: {str(e)}*\n\n"
           
           # Add footer
-          cat >> README.md << EOF
+          readme_content += """---
           
-          ---
+          This README is automatically updated every 6 hours via GitHub Actions."""
           
-          This README is automatically updated every 6 hours via GitHub Actions.
+          # Write README
+          with open('README.md', 'w', encoding='utf-8') as f:
+              f.write(readme_content)
+          
+          print("README updated successfully!")
           EOF
+
+      - name: Run Python script
+        run: python parse_rss.py
 
       - name: Commit and push changes
         run: |
