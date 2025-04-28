@@ -1,12 +1,13 @@
-name: Google News RSS Parser
+name: Google News Scraper
 
 on:
   schedule:
+    # Runs every 6 hours
     - cron: '0 */6 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
-  parse-rss:
+  update-readme:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,145 +16,101 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          python-version: '3.10'
+          node-version: '16'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install feedparser python-dateutil
+        run: npm install axios cheerio
 
-      - name: Create Python script
+      - name: Create and run script
         run: |
-          cat > parse_rss.py << 'EOF'
-          import feedparser
-          import datetime
-          import re
-          from dateutil import parser as date_parser
-          
-          # Custom topics focused on cybersecurity and related fields
-          topics = {
-              "China Cyber": "https://news.google.com/rss/search?q=china+cyber+attack&hl=en-US&gl=US&ceid=US:en",
-              "Russian Cyber": "https://news.google.com/rss/search?q=russia+cyber+attack&hl=en-US&gl=US&ceid=US:en",
-              "Iranian Cyber": "https://news.google.com/rss/search?q=iran+cyber+attack&hl=en-US&gl=US&ceid=US:en",
-              "CVEs": "https://news.google.com/rss/search?q=cve+vulnerability&hl=en-US&gl=US&ceid=US:en",
-              "POC Exploits": "https://news.google.com/rss/search?q=proof+of+concept+exploit&hl=en-US&gl=US&ceid=US:en",
-              "Exploited Vulnerabilities": "https://news.google.com/rss/search?q=exploited+vulnerability&hl=en-US&gl=US&ceid=US:en",
-              "Satellites": "https://news.google.com/rss/search?q=satellite+cybersecurity&hl=en-US&gl=US&ceid=US:en",
-              "Cyber Attacks": "https://news.google.com/rss/search?q=major+cyber+attack&hl=en-US&gl=US&ceid=US:en",
-              "Crypto Security": "https://news.google.com/rss/search?q=cryptocurrency+security&hl=en-US&gl=US&ceid=US:en",
-              "Quantum Computing": "https://news.google.com/rss/search?q=quantum+computing+security&hl=en-US&gl=US&ceid=US:en",
-              "Espionage": "https://news.google.com/rss/search?q=cyber+espionage&hl=en-US&gl=US&ceid=US:en"
+          cat > scrape-news.js << 'ENDOFFILE'
+          const axios = require('axios');
+          const cheerio = require('cheerio');
+          const fs = require('fs');
+
+          const keywords = ['AI', 'Machine Learning', 'Data Science'];
+          const maxArticlesPerKeyword = 5;
+
+          async function fetchNewsForKeyword(keyword) {
+            try {
+              const encodedKeyword = encodeURIComponent(keyword);
+              const url = `https://news.google.com/rss/search?q=${encodedKeyword}&hl=en-US&gl=US&ceid=US:en`;
+              
+              const response = await axios.get(url);
+              const $ = cheerio.load(response.data, { xmlMode: true });
+              
+              const articles = [];
+              $('item').each((i, item) => {
+                if (i < maxArticlesPerKeyword) {
+                  const title = $(item).find('title').text();
+                  const link = $(item).find('link').text();
+                  const source = $(item).find('source').text();
+                  
+                  articles.push({
+                    title,
+                    link,
+                    source
+                  });
+                }
+              });
+              
+              return articles;
+            } catch (error) {
+              console.error(`Error fetching news for ${keyword}:`, error.message);
+              return [];
+            }
           }
-          
-          # Function to clean HTML from text
-          def clean_html(html_text):
-              # Remove HTML tags
-              clean_text = re.sub(r'<[^>]+>', '', html_text)
+
+          async function updateReadme() {
+            let readmeContent = `# News Tracker
+
+This repository automatically tracks news articles from Google News on selected keywords.
+
+## How It Works
+
+- GitHub Action runs every 6 hours
+- Scrapes Google News for specified keywords
+- Removes duplicate articles
+- Updates this README with the latest news
+
+## Latest News
+
+_Last updated: ${new Date().toUTCString()}_
+
+`;
+
+            for (const keyword of keywords) {
+              const articles = await fetchNewsForKeyword(keyword);
               
-              # Replace HTML entities
-              entities = {
-                  '&nbsp;': ' ',
-                  '&quot;': '"',
-                  '&amp;': '&',
-                  '&lt;': '<',
-                  '&gt;': '>',
-                  '&apos;': "'",
-                  '&#39;': "'",
-                  '&mdash;': "—"
+              if (articles.length > 0) {
+                readmeContent += `\n### ${keyword}\n\n`;
+                
+                for (const article of articles) {
+                  readmeContent += `- [${article.title}](${article.link})`;
+                  if (article.source) {
+                    readmeContent += ` - ${article.source}`;
+                  }
+                  readmeContent += '\n';
+                }
               }
-              
-              for entity, replacement in entities.items():
-                  clean_text = clean_text.replace(entity, replacement)
-              
-              return clean_text.strip()
-          
-          # Create README content
-          readme_content = f"""# Cybersecurity News Tracker
+            }
 
-Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
-""
-          
-          # Process each topic
-          for topic, url in topics.items():
-              print(f"Processing {topic}")
-              
-              # Add topic header
-              readme_content += f"\n## {topic}\n\n"
-              
-              try:
-                  # Parse the feed
-                  feed = feedparser.parse(url)
-                  
-                  # Limit to 5 entries maximum for cleaner look
-                  entries = feed.entries[:5]
-                  
-                  # Add entries to README
-                  if entries:
-                      for entry in entries:
-                          # Get title and link
-                          title = entry.title.replace(' - ', ': ').split(' | ')[0].strip()
-                          link = entry.link
-                          
-                          # Get source if available
-                          source = ""
-                          if hasattr(entry, 'source'):
-                              if hasattr(entry.source, 'title'):
-                                  source = f" ({entry.source.title})"
-                          
-                          # Get description
-                          description = ""
-                          if hasattr(entry, 'description'):
-                              description = entry.description
-                          elif hasattr(entry, 'summary'):
-                              description = entry.summary
-                          
-                          # Clean up description
-                          description = clean_html(description)
-                          
-                          # Limit description length for cleaner look
-                          if len(description) > 200:
-                              # Try to end at a sentence or comma
-                              cutoff = min(200, len(description))
-                              period_pos = description.rfind('. ', 0, cutoff)
-                              comma_pos = description.rfind(', ', 0, cutoff)
-                              
-                              if period_pos > 0:
-                                  description = description[:period_pos+1]
-                              elif comma_pos > 0:
-                                  description = description[:comma_pos+1]
-                              else:
-                                  description = description[:cutoff] + "..."
-                          
-                          # Add entry to README with a cleaner format
-                          readme_content += f"* **[{title}]({link})**{source}\n  {description}\n\n"
-                  else:
-                      readme_content += "*No recent articles found*\n\n"
-              
-              except Exception as e:
-                  readme_content += f"*Error processing feed: {str(e)}*\n\n"
-          
-          # Add footer
-          readme_content += """---
+            fs.writeFileSync('README.md', readmeContent);
+            console.log('README.md updated successfully');
+          }
 
-*Automatically updated every 6 hours via GitHub Actions*"""
+          updateReadme();
+          ENDOFFILE
           
-          # Write README
-          with open('README.md', 'w', encoding='utf-8') as f:
-              f.write(readme_content)
-          
-          print("README updated successfully!")
-          EOF
+          node scrape-news.js
 
-      - name: Run Python script
-        run: python parse_rss.py
-
-      - name: Commit and push changes with force
+      - name: Commit and push changes
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add README.md
-          git commit -m "Update cybersecurity news: $(date +'%Y-%m-%d %H:%M:%S')"
-          git push --force origin main
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update news: $(date +'%Y-%m-%d %H:%M:%S')"
+          git push
