@@ -74,7 +74,6 @@ jobs:
           readme_content = f"""# Cybersecurity News Tracker
 
 Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
-
 """
           
           # Process each topic
@@ -82,7 +81,7 @@ Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
               print(f"Processing {topic}")
               
               # Add topic header
-              readme_content += f"## {topic}\n\n"
+              readme_content += f"\n## {topic}\n\n"
               
               try:
                   # Parse the feed
