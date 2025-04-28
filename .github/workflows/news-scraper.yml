@@ -74,7 +74,7 @@ jobs:
           readme_content = f"""# Cybersecurity News Tracker
 
 Last updated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
-"""
+""
           
           # Process each topic
           for topic, url in topics.items():
